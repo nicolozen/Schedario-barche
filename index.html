@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schedario Barche GitHub</title>
+    <style>
+        body { font-family: -apple-system, sans-serif; background: #f5f5f7; padding: 20px; color: #1d1d1f; }
+        .header { text-align: center; margin-bottom: 30px; }
+        #searchBar { width: 100%; max-width: 500px; padding: 12px; font-size: 16px; border: 1px solid #d2d2d7; border-radius: 8px; outline: none; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; max-width: 1200px; margin: 0 auto; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); overflow: hidden; display: flex; flex-direction: column; }
+        .card-img { width: 100%; height: 220px; object-fit: cover; background: #eaeaea; }
+        .card-content { padding: 16px; flex-grow: 1; display: flex; flex-direction: column; }
+        .info-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .info-table td { padding: 8px 0; border-bottom: 1px solid #f5f5f7; }
+        .info-table td.label { font-weight: 500; color: #86868b; }
+        .info-table td.value { text-align: right; }
+        .notes-block { border-top: 1px solid #f5f5f7; padding-top: 12px; margin-top: 8px; font-size: 13px; }
+        .notes-label { font-weight: 500; color: #86868b; font-size: 11px; text-transform: uppercase; }
+        .btn-edit { background: #0071e3; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; margin-top: 12px; align-self: flex-start; }
+        .edit-form-container { display: none; padding: 16px; background: #fafafa; border-top: 1px solid #d2d2d7; font-size: 13px; }
+        .form-group { margin-bottom: 10px; display: flex; flex-direction: column; }
+        .form-group label { font-weight: 500; color: #86868b; margin-bottom: 4px; }
+        .form-group input, .form-group textarea { padding: 6px; border: 1px solid #d2d2d7; border-radius: 4px; }
+        .btn-actions { display: flex; gap: 8px; margin-top: 10px; }
+        .btn-save { background: #34c759; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+        .btn-cancel { background: #86868b; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Schedario Barche</h1>
+        <input type="text" id="searchBar" onkeyup="filterCards()" placeholder="Cerca...">
+    </div>
+    <div class="grid" id="cardGrid"></div>
+
+    <script>
+        // CONFIGURAZIONE PERSONALE GITHUB
+        const GITHUB_USER = 'nicolozen'; 
+        const GITHUB_REPO = 'schedario';
+        const GITHUB_TOKEN = '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';
+        const FILE_PATH = 'dati.json';
+
+        let barcheData = [];
+        let fileSha = ''; 
+
+        // Carica i dati direttamente da GitHub
+        fetch(`https://github.com{GITHUB_USER}/${GITHUB_REPO}/contents/${FILE_PATH}`, {
+            headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
+        })
+        .then(response => response.json())
+        .then(data => {
+            fileSha = data.sha; // Serve a GitHub per autorizzare la modifica
+            barcheData = JSON.parse(atob(data.content)); // Decodifica il file json
+            renderCards();
+        })
+        .catch(err => alert("Errore nel caricamento del file dati.json da GitHub. Assicurati che il file esista nella cartella."));
+
+        function renderCards() {
+            const grid = document.getElementById('cardGrid');
+            grid.innerHTML = '';
+            
+            barcheData.forEach(row => {
+                let foto = row.fotolink || row.Fotolink || '';
+                // Gestione foto locali relative alla cartella su GitHub
+                if (foto.includes('saltafossi-arzan')) { foto = 'https://nizen.it/altrebarche/schedario26/fotobarche/saltafossi-arzana.jpg'; }
+                let note = row.note || row.Note || '';
+
+                let tableRows = '';
+                for (let key in row) {
+                    if (['id', 'fotolink', 'foto', 'note'].includes(key.toLowerCase()) || !row[key] || row[key] === '-') continue;
+                    tableRows += `<tr><td class="label">${key.charAt(0).toUpperCase() + key.slice(1)}</td><td class="value">${row[key]}</td></tr>`;
+                }
+
+                let formFields = '';
+                for (let key in row) {
+                    if (key.toLowerCase() === 'id' || ['fotolink', 'foto'].includes(key.toLowerCase())) continue;
+                    if (key.toLowerCase() === 'note') {
+                        formFields += `<div class="form-group"><label>Note</label><textarea id="input-${row.id}-${key}" rows="3">${row[key] || ''}</textarea></div>`;
+                    } else {
+                        formFields += `<div class="form-group"><label>${key}</label><input type="text" id="input-${row.id}-${key}" value="${row[key] || ''}"></div>`;
+                    }
+                }
+
+                let noteBlock = (note && note !== '-') ? `<div class="notes-block"><div class="notes-label">Note</div><div>${note}</div></div>` : '';
+
+                let cardHtml = `
+                    <div class="card" id="card-${row.id}">
+                        <img class="card-img" src="${foto}" onerror="this.src='https://placehold.co'">
+                        <div class="card-content" id="view-${row.id}">
+                            <table class="info-table">${tableRows}</table>
+                            ${noteBlock}
+                            <button class="btn-edit" onclick="showEditForm(${row.id})">Modifica</button>
+                        </div>
+                        <div class="edit-form-container" id="form-${row.id}">
+                            ${formFields}
+                            <div class="btn-actions">
+                                <button class="btn-save" onclick="saveData(${row.id})">Salva</button>
+                                <button class="btn-cancel" onclick="hideEditForm(${row.id})">Annulla</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                grid.insertAdjacentHTML('beforeend', cardHtml);
+            });
+        }
+
+        function filterCards() {
+            let filter = document.getElementById('searchBar').value.toLowerCase();
+            let cards = document.getElementsByClassName('card');
+            for (let i = 0; i < cards.length; i++) {
+                let content = cards[i].querySelector('.card-content').innerText.toLowerCase();
+                cards[i].style.display = content.includes(filter) ? "" : "none";
+            }
+        }
+
+        function showEditForm(id) {
+            document.getElementById('view-' + id).style.display = 'none';
+            document.getElementById('form-' + id).style.display = 'block';
+        }
+
+        function hideEditForm(id) {
+            document.getElementById('view-' + id).style.display = 'flex';
+            document.getElementById('form-' + id).style.display = 'none';
+        }
+
+        function saveData(id) {
+            let password = prompt("Inserisci la password di sicurezza per confermare la modifica:");
+            if (password !== "pch") { 
+                alert("Password errata. Modifica annullata.");
+                return;
+            }
+
+            let targetRow = barcheData.find(b => b.id == id);
+            for (let key in targetRow) {
+                if (key.toLowerCase() === 'id' || ['fotolink', 'foto'].includes(key.toLowerCase())) continue;
+                let inputElement = document.getElementById(`input-${id}-${key}`);
+                if (inputElement) { targetRow[key] = inputElement.value; }
+            }
+
+            const updatedContent = btoa(unescape(encodeURIComponent(JSON.stringify(barcheData, null, 2))));
+
+            // AGGIORNAMENTO DIRETTO E AUTOMATICO SU GITHUB
+            fetch(`https://github.com{GITHUB_USER}/${GITHUB_REPO}/contents/${FILE_PATH}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `token ${GITHUB_TOKEN}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    message: `Aggiornata barca ID ${id} dallo smartphone`,
+                    content: updatedContent,
+                    sha: fileSha
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                fileSha = data.content.sha; // Aggiorna lo SHA per la prossima modifica
+                alert("Modifica salvata su GitHub con successo!");
+                hideEditForm(id);
+                renderCards();
+            })
+            .catch(err => {
+                alert("Errore durante il salvataggio automatico. Riprova.");
+            });
+        }
+    </script>
+</body>
+</html>
