@@ -45,17 +45,20 @@
         let barcheData = [];
         let fileSha = ''; 
 
-        // Carica i dati direttamente da GitHub
+        // Carica i dati direttamente da GitHub tramite API
         fetch(`https://github.com{GITHUB_USER}/${GITHUB_REPO}/contents/${FILE_PATH}`, {
             headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) throw new Error("Errore nel caricamento delle informazioni");
+            return response.json();
+        })
         .then(data => {
             fileSha = data.sha; // Serve a GitHub per autorizzare la modifica
-            barcheData = JSON.parse(atob(data.content)); // Decodifica il file json
+            barcheData = JSON.parse(atob(data.content.replace(/\s/g, ''))); // Decodifica il file json pulendo gli spazi
             renderCards();
         })
-        .catch(err => alert("Errore nel caricamento del file dati.json da GitHub. Assicurati che il file esista nella cartella."));
+        .catch(err => alert("Errore nel caricamento del file dati.json da GitHub. Assicurati che il file esista e il token sia attivo."));
 
         function renderCards() {
             const grid = document.getElementById('cardGrid');
@@ -141,7 +144,7 @@
 
             const updatedContent = btoa(unescape(encodeURIComponent(JSON.stringify(barcheData, null, 2))));
 
-            // AGGIORNAMENTO DIRETTO E AUTOMATICO SU GITHUB
+            // AGGIORNAMENTO DIRETTO E AUTOMATICO SU GITHUB CON API CORRETTE
             fetch(`https://github.com{GITHUB_USER}/${GITHUB_REPO}/contents/${FILE_PATH}`, {
                 method: 'PUT',
                 headers: {
